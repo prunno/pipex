@@ -1,21 +1,5 @@
 #include "pipex.h"
 
-void	print_fd(int fd)
-{
-	char	buf[BUFFER_SIZE + 1];
-	int		read_return;
-
-	read_return = read(fd, buf, BUFFER_SIZE);
-	printf("Reading %d\n", fd);
-	while (read_return > 0)
-	{
-		buf[read_return] = 0;
-		printf("%s", buf);
-		read_return = read(fd, buf, BUFFER_SIZE);
-	}
-	printf("End of %d\n", fd);
-}
-
 void	write_output(int fd_out, int fd_in)
 {
 	char	buf[BUFFER_SIZE];
@@ -58,6 +42,13 @@ int	parse_args(t_env *env, int argc, char *argv[])
 	int		i;
 
 	i = 1;
+	env->heredoc = NULL;
+	if (!ft_strcmp(argv[0], "here_doc"))
+	{
+		env->heredoc = argv[1];
+		argc--;
+		argv++;
+	}
 	env->commands = (char ***) malloc(sizeof(char **) * (argc - 1));
 	if (env->commands == NULL)
 		return (1);
@@ -125,7 +116,35 @@ void	close_pipe(int fd[2])
 	close(fd[1]);
 }
 
-void	handle_parent(t_env *env, int fd_pipe_in[2], int fd_pipe_out[2], int pid)
+void	handle_parent_heredoc(t_env *env, int fd_pipe_in[2], int fd_pipe_out[2])
+{
+	int		read_return;
+	char	*limiter;
+	char	line[BUFFER_SIZE + 1];
+
+	close(fd_pipe_out[1]);
+	close(fd_pipe_in[0]);
+	write(STDOUT_FILENO, "heredoc> ", ft_strlen("heredoc> "));
+	read_return = read(env->fd_in, line, BUFFER_SIZE);
+	while (read_return > 0)
+	{
+		line[read_return] = '\0';
+		limiter = strstr(line, env->heredoc);
+		if (limiter)
+		{
+			write(fd_pipe_in[1], line, limiter - line);
+			break ;
+		}
+		write(fd_pipe_in[1], line, read_return);
+		write(STDOUT_FILENO, "heredoc> ", ft_strlen("heredoc> "));
+		read_return = read(env->fd_in, line, BUFFER_SIZE);
+	}
+	close(env->fd_in);
+	close(fd_pipe_in[1]);
+	wait(NULL);
+}
+
+void	handle_parent_default(t_env *env, int fd_pipe_in[2], int fd_pipe_out[2])
 {
 	int		read_return;
 	char	line[BUFFER_SIZE];
@@ -139,7 +158,15 @@ void	handle_parent(t_env *env, int fd_pipe_in[2], int fd_pipe_out[2], int pid)
 		read_return = read(env->fd_in, line, BUFFER_SIZE);
 	}
 	close(fd_pipe_in[1]);
-	waitpid(pid, NULL, 0);
+	wait(NULL);
+}
+
+void	handle_parent(t_env *env, int fd_pipe_in[2], int fd_pipe_out[2], int i)
+{
+	if (env->heredoc && i == 1)
+		handle_parent_heredoc(env, fd_pipe_in, fd_pipe_out);
+	else
+		handle_parent_default(env, fd_pipe_in, fd_pipe_out);
 }
 
 void	exec_file(int fd_pipe_in[2], int fd_pipe_out[2], char *cmd, char **argv)
@@ -177,7 +204,7 @@ void	exec_cmds(t_env *env)
 	int		i;
 	pid_t	pid;
 
-	i = 0;
+	i = 1;
 	while (i < env->n_cmds)
 	{
 		pipe(fd_pipe_out);
@@ -188,11 +215,50 @@ void	exec_cmds(t_env *env)
 		if (pid == 0)
 			handle_child(env, fd_pipe_in, fd_pipe_out, i);
 		else
-			handle_parent(env, fd_pipe_in, fd_pipe_out, pid);
+			handle_parent(env, fd_pipe_in, fd_pipe_out, i);
 		close(env->fd_in);
 		env->fd_in = fd_pipe_out[0];
 		i++;
 	}
+}
+
+void	default_pipex(t_env *env)
+{
+	env->fd_in = open(env->file_in, O_RDONLY);
+	if (env->fd_in < 0)
+	{
+		free_env(*env);
+		exit(EXIT_FAILURE);
+	}
+	env->fd_out = open(env->file_out, OPEN_DEFAULT, 0644);
+	if (env->fd_out < 0)
+	{
+		close(env->fd_in);
+		free_env(*env);
+		exit(EXIT_FAILURE);
+	}
+	exec_cmds(env);
+	if (env->fd_in > 0)
+		write_output(env->fd_out, env->fd_in);
+	close(env->fd_out);
+	close(env->fd_in);
+}
+
+void	heredoc_pipex(t_env *env)
+{
+	env->fd_in = STDIN_FILENO;
+	env->fd_out = open(env->file_out, O_WRONLY | O_CREAT | O_APPEND, 0644);
+	if (env->fd_out < 0)
+	{
+		close(env->fd_in);
+		free_env(*env);
+		exit(EXIT_FAILURE);
+	}
+	exec_cmds(env);
+	if (env->fd_in > 0)
+		write_output(env->fd_out, env->fd_in);
+	close(env->fd_out);
+	close(env->fd_in);
 }
 
 int	main(int argc, char *argv[], char **envp)
@@ -205,19 +271,13 @@ int	main(int argc, char *argv[], char **envp)
 		return (1);
 	env.path = get_path(envp);
 	env.binfile_path = (char *) malloc(BUFFER_SIZE);
+	env.binfile_size = BUFFER_SIZE;
 	if (env.binfile_path)
 	{
-		env.fd_in = open(env.file_in, O_RDONLY);
-		if (env.fd_in < 0)
-			return (free_env(env), EXIT_FAILURE);
-		env.fd_out = open(env.file_out, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-		if (env.fd_out < 0)
-			return (close(env.fd_in), free_env(env), EXIT_FAILURE);
-		exec_cmds(&env);
-		if (env.fd_in > 0)
-			write_output(env.fd_out, env.fd_in);
-		close(env.fd_out);
-		close(env.fd_in);
+		if (env.heredoc == NULL)
+			default_pipex(&env);
+		else
+			heredoc_pipex(&env);
 	}
 	free_env(env);
 }
