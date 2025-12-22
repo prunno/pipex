@@ -13,28 +13,19 @@ void	write_output(int fd_out, int fd_in)
 	}
 }
 
-char	**get_cmd(char *arg)
+void	free_env(t_env env)
 {
-	return (ft_split(arg, ' '));
-}
 
-void	free_commands(char ***commands)
-{
 	int	i;
 
 	i = 0;
-	while (commands[i] != NULL)
+	while (env.commands[i] != NULL)
 	{
-		free_split(commands[i]);
+		free_split(env.commands[i]);
 		i++;
 	}
-	free(commands);
-}
-
-void	free_env(t_env env)
-{
+	free(env.commands);
 	free(env.binfile_path);
-	free_commands(env.commands);
 }
 
 int	parse_args(t_env *env, int argc, char *argv[])
@@ -58,9 +49,9 @@ int	parse_args(t_env *env, int argc, char *argv[])
 	env->file_out = argv[argc - 1];
 	while (i < argc - 1)
 	{
-		env->commands[i - 1] = get_cmd(argv[i]);
+		env->commands[i - 1] = ft_split(argv[i], ' ');
 		if (env->commands[i - 1] == NULL)
-			return (free_commands(env->commands), 1);
+			return (free_env(*env), 1);
 		i++;
 	}
 	return (0);
@@ -94,9 +85,9 @@ int	get_fullpath(t_env *env, char *command)
 			j++;
 		if (env->binfile_size <= j - i + cmd_len + 2)
 		{
-			env->binfile_size *= 2;
+			env->binfile_size = (j - i + cmd_len + 2) * 2;
 			free(env->binfile_path);
-			env->binfile_path = (char *) malloc(env->binfile_size);
+			env->binfile_path = (char *) malloc(env->binfile_size + 1);
 			if (env->binfile_path == NULL)
 				return (-1);
 		}
@@ -119,9 +110,10 @@ void	close_pipe(int fd[2])
 void	handle_parent_heredoc(t_env *env, int fd_pipe_in[2], int fd_pipe_out[2])
 {
 	int		read_return;
-	char	*limiter;
+	size_t	limiter_len;
 	char	line[BUFFER_SIZE + 1];
 
+	limiter_len = ft_strlen(env->heredoc);
 	close(fd_pipe_out[1]);
 	close(fd_pipe_in[0]);
 	write(STDOUT_FILENO, "heredoc> ", ft_strlen("heredoc> "));
@@ -129,17 +121,13 @@ void	handle_parent_heredoc(t_env *env, int fd_pipe_in[2], int fd_pipe_out[2])
 	while (read_return > 0)
 	{
 		line[read_return] = '\0';
-		limiter = strstr(line, env->heredoc);
-		if (limiter)
-		{
-			write(fd_pipe_in[1], line, limiter - line);
+		if (ft_strlen(line) == limiter_len + 1
+			&& !ft_strncmp(line, env->heredoc, limiter_len))
 			break ;
-		}
 		write(fd_pipe_in[1], line, read_return);
 		write(STDOUT_FILENO, "heredoc> ", ft_strlen("heredoc> "));
 		read_return = read(env->fd_in, line, BUFFER_SIZE);
 	}
-	close(env->fd_in);
 	close(fd_pipe_in[1]);
 	wait(NULL);
 }
@@ -270,7 +258,7 @@ int	main(int argc, char *argv[], char **envp)
 	if (parse_args(&env, argc - 1, &argv[1]))
 		return (1);
 	env.path = get_path(envp);
-	env.binfile_path = (char *) malloc(BUFFER_SIZE);
+	env.binfile_path = (char *) malloc(BUFFER_SIZE + 1);
 	env.binfile_size = BUFFER_SIZE;
 	if (env.binfile_path)
 	{
