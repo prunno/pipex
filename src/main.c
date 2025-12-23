@@ -117,6 +117,7 @@ void	wait_all(t_env *env)
 		waitpid(env->children[i], &env->exit_status, 0);
 		i++;
 	}
+	waitpid(1, NULL, WNOHANG);
 }
 
 int	parse_limiter(char *limiter, char *buf)
@@ -192,6 +193,9 @@ void	exec_file(t_env *env, char *cmd, char **argv, int fd_pipe_out)
 	dup2(env->fd_in, STDIN_FILENO);
 	close(env->fd_in);
 	execve(cmd, argv, env->envp);
+	perror("cmd");
+	free_env(*env);
+	exit(126);
 }
 
 void	handle_child(t_env *env, int i, int fd_pipe_out)
@@ -209,6 +213,8 @@ void	handle_child(t_env *env, int i, int fd_pipe_out)
 	{
 		if (!access(env->commands[i][0], X_OK))
 			exec_file(env, env->commands[i][0], env->commands[i], fd_pipe_out);
+		ft_putstr_fd("Command not found\n", STDERR_FILENO);
+		ft_putstr_fd(env->commands[i][0], STDERR_FILENO);
 		perror(env->commands[i][0]);
 	}
 	else if (r == 0)
@@ -231,7 +237,7 @@ void	exec_cmds(t_env *env)
 		if (pid < 0)
 			return ;
 		if (pid == 0)
-			handle_child(env, i, fd_pipe[1]);
+			close(fd_pipe[0]), handle_child(env, i, fd_pipe[1]);
 		handle_parent(env, fd_pipe, i, pid);
 		i++;
 	}
