@@ -8,21 +8,6 @@ int	get_exit_status(t_env env)
 	return (127);
 }
 
-void	write_output(int fd_out, int fd_in)
-{
-	char	buf[BUFFER_SIZE];
-	int		read_return;
-
-	if (fd_out < 0)
-		return ;
-	read_return = read(fd_in, buf, BUFFER_SIZE);
-	while (read_return > 0)
-	{
-		write(fd_out, buf, read_return);
-		read_return = read(fd_in, buf, BUFFER_SIZE);
-	}
-}
-
 void	free_commands(char ***commands)
 {
 	int	i;
@@ -192,15 +177,20 @@ void	exec_file(t_env *env, char *cmd, char **argv, int fd_pipe_out)
 	
 	close(STDOUT_FILENO);
 	if (fd_pipe_out >= 0)
+	{
 		dup2(fd_pipe_out, STDOUT_FILENO);
+		close(fd_pipe_out);
+	}
 	else
 	{
 		pipe(dummy);
 		close(dummy[0]);
 		dup2(dummy[1], STDOUT_FILENO);
+		close(dummy[1]);
 	}
 	close(STDIN_FILENO);
 	dup2(env->fd_in, STDIN_FILENO);
+	close(env->fd_in);
 	execve(cmd, argv, env->envp);
 }
 
@@ -266,10 +256,8 @@ void	default_pipex(t_env *env)
 	env->fd_in = open(env->file_in, O_RDONLY);
 	if (!access(env->file_out, F_OK) && access(env->file_out, W_OK))
 		perror(env->file_out);
-	env->fd_out = open(env->file_out, OPEN_DEFAULT);
+	env->fd_out = open(env->file_out, OPEN_DEFAULT, 0644);
 	exec_cmds(env);
-	if (env->fd_in > 0)
-		write_output(env->fd_out, env->fd_in);
 }
 
 void	heredoc_pipex(t_env *env)
@@ -278,10 +266,8 @@ void	heredoc_pipex(t_env *env)
 	env->fd_in = env->heredoc_pipe[0];
 	if (!access(env->file_out, F_OK) && access(env->file_out, W_OK))
 		perror(env->file_out);
-	env->fd_out = open(env->file_out, O_WRONLY | O_CREAT | O_APPEND);
+	env->fd_out = open(env->file_out, O_WRONLY | O_CREAT | O_APPEND, 0644);
 	exec_cmds(env);
-	if (env->fd_in > 0)
-		write_output(env->fd_out, env->fd_in);
 }
 
 int	main(int argc, char *argv[], char **envp)
