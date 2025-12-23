@@ -235,7 +235,6 @@ void	exec_cmds(t_env *env)
 		handle_parent(env, fd_pipe, i, pid);
 		i++;
 	}
-	dup2(env->fd_out, STDOUT_FILENO);
 	pid = fork();
 	if (pid < 0)
 		return ;
