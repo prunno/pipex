@@ -6,7 +6,12 @@ NAME=			pipex
 BIN_DIR=		bin/
 NAME:=			${addprefix ${BIN_DIR}, ${NAME}}
 
-SRC=			main.c														
+SRC=			main.c														\
+				free_utils.c												\
+				parse_args.c												\
+				heredoc.c													\
+				parent_utils.c												\
+				child_utils.c												\
 				
 SRC_DIR=		src/
 

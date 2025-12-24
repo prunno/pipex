@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   pipex.h                                            :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: vicli <vicli@student.42.fr>                +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2025/12/24 11:02:17 by vicli             #+#    #+#             */
+/*   Updated: 2025/12/24 11:02:17 by vicli            ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 #ifndef PIPEX_H
 # define PIPEX_H
 
@@ -12,8 +24,7 @@
 
 # include "libft.h"
 
-# define BUFFER_SIZE 4096 * 16
-# define OPEN_DEFAULT O_WRONLY | O_CREAT | O_TRUNC
+# define BUFFER_SIZE 4096
 
 typedef struct s_env
 {
@@ -32,5 +43,23 @@ typedef struct s_env
 	pid_t	*children;
 	char	**envp;
 }	t_env;
+
+void	free_commands(char ***commands);
+void	free_env(t_env env);
+
+char	*get_path(char **envp);
+int		parse_args(t_env *env, int argc, char *argv[]);
+
+int		parse_limiter(char *limiter, char *buf, int size);
+void	handle_parent_heredoc(t_env *env);
+void	heredoc_pipex(t_env *env);
+
+int		get_fullpath(t_env *env, char *command);
+void	exec_file(t_env *env, char *cmd, char **argv, int fd_pipe_out);
+
+int		get_exit_status(t_env env);
+void	wait_all(t_env *env);
+
+void	exec_cmds(t_env *env);
 
 #endif
