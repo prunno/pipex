@@ -78,7 +78,6 @@ void	exec_file(t_env *env, char *cmd, char **argv, int fd_pipe_out)
 void	error_not_found(char *cmd)
 {
 	ft_putstr_fd("command not found ", STDERR_FILENO);
-	fprintf(stderr, "%s\n", cmd);
 	if (cmd)
 		ft_putstr_fd(cmd, STDERR_FILENO);
 	ft_putstr_fd("\n", STDERR_FILENO);
