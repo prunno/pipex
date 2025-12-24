@@ -56,6 +56,7 @@ void	heredoc_pipex(t_env *env);
 
 int		get_fullpath(t_env *env, char *command);
 void	exec_file(t_env *env, char *cmd, char **argv, int fd_pipe_out);
+void	error_not_found(char *cmd);
 
 int		get_exit_status(t_env env);
 void	wait_all(t_env *env);

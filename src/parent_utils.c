@@ -16,25 +16,18 @@ int	get_exit_status(t_env env)
 {
 	if (WIFEXITED(env.exit_status))
 		return (WEXITSTATUS(env.exit_status));
-	return (127);
+	return (0);
 }
 
 void	wait_all(t_env *env)
 {
 	int	i;
 
-	// waitpid(env->children[env->n_cmds - 1], &env->exit_status, 0);
 	i = 0;
-	while (i < env->n_cmds)
+	while (i < env->n_cmds - 1)
 	{
-		waitpid(env->children[i], &env->exit_status, 0);
+		waitpid(env->children[i], NULL, 0);
 		i++;
 	}
-	i = 0;
-	while (i < env->n_cmds)
-	{
-		while (!waitpid(-1, NULL, 0))
-			;
-		i++;
-	}
+	waitpid(env->children[env->n_cmds - 1], &env->exit_status, 0);
 }

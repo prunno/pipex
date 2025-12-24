@@ -31,10 +31,12 @@ static void	handle_child(t_env *env, int i, int fd_pipe_out)
 	if (env->heredoc_pipe[1] >= 0)
 		close(env->heredoc_pipe[1]);
 	if (env->commands[i][0] == NULL)
-		(free_env(*env), ft_putstr_fd("Command not found\n", 2), exit(127));
+		(free_env(*env), error_not_found(NULL), exit(127));
 	r = get_fullpath(env, env->commands[i][0]);
 	if (r == 1)
 	{
+		if (access(env->commands[i][0], F_OK))
+			(error_not_found(env->commands[i][0]), free_env(*env), exit(127));
 		if (!access(env->commands[i][0], X_OK))
 			exec_file(env, env->commands[i][0], env->commands[i], fd_pipe_out);
 		perror(env->commands[i][0]);
@@ -92,21 +94,22 @@ int	main(int argc, char *argv[], char **envp)
 	t_env	env;
 
 	if (argc < 5)
-		return (0);
+		return (1);
 	if (parse_args(&env, argc - 1, &argv[1]))
 		return (1);
 	env.envp = envp;
 	env.path = get_path(envp);
 	env.binfile_path = (char *) malloc(BUFFER_SIZE + 1);
+	if (env.binfile_path == NULL)
+		return (free_commands(env.commands), 1);
 	env.binfile_size = BUFFER_SIZE;
 	env.children = (pid_t *) malloc(sizeof(pid_t) * env.n_cmds);
-	if (env.binfile_path)
-	{
-		if (env.heredoc == NULL)
-			default_pipex(&env);
-		else
-			heredoc_pipex(&env);
-	}
+	if (env.children == NULL)
+		return (free_env(env), 1);
+	if (env.heredoc == NULL)
+		default_pipex(&env);
+	else
+		heredoc_pipex(&env);
 	free_env(env);
 	return (get_exit_status(env));
 }
